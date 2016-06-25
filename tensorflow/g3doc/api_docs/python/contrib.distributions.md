@@ -95,6 +95,36 @@ cum_prob_per_dist = u.cdf([[4.0, 5.0],
 # INVALID as the `value` argument is not broadcastable to the distribution's
 # shape.
 cum_prob_invalid = u.cdf([4.0, 5.0, 6.0])
+
+### Parameter values leading to undefined statistics or distributions.
+
+Some distributions do not have well-defined statistics for all initialization
+parameter values.  For example, the beta distribution is parameterized by
+positive real numbers `a` and `b`, and does not have well-defined mode if
+`a < 1` or `b < 1`.
+
+The user is given the option of raising an exception or returning `NaN`.
+
+```python
+a = tf.exp(tf.matmul(logits, weights_a))
+b = tf.exp(tf.matmul(logits, weights_b))
+
+# Will raise exception if ANY batch member has a < 1 or b < 1.
+dist = distributions.beta(a, b, allow_nan=False)  # default is False
+mode = dist.mode().eval()
+
+# Will return NaN for batch members with either a < 1 or b < 1.
+dist = distributions.beta(a, b, allow_nan=True)
+mode = dist.mode().eval()
+```
+
+In all cases, an exception is raised if *invalid* parameters are passed, e.g.
+
+```python
+# Will raise an exception if any Op is run.
+negative_a = -1.0 * a  # beta distribution by definition has a > 0.
+dist = distributions.beta(negative_a, b, allow_nan=True)
+dist.mean().eval()
 ```
 - - -
 
@@ -223,6 +253,13 @@ Generate `n` samples.
 #### `tf.contrib.distributions.BaseDistribution.std(name='std')` {#BaseDistribution.std}
 
 Standard deviation of the distribution.
+
+
+- - -
+
+#### `tf.contrib.distributions.BaseDistribution.strict` {#BaseDistribution.strict}
+
+Boolean describing behavior on invalid input.
 
 
 - - -
@@ -413,6 +450,13 @@ Standard deviation of the distribution.
 
 - - -
 
+#### `tf.contrib.distributions.ContinuousDistribution.strict` {#ContinuousDistribution.strict}
+
+Boolean describing behavior on invalid input.
+
+
+- - -
+
 #### `tf.contrib.distributions.ContinuousDistribution.variance(name='variance')` {#ContinuousDistribution.variance}
 
 Variance of the distribution.
@@ -585,6 +629,13 @@ Standard deviation of the distribution.
 
 - - -
 
+#### `tf.contrib.distributions.DiscreteDistribution.strict` {#DiscreteDistribution.strict}
+
+Boolean describing behavior on invalid input.
+
+
+- - -
+
 #### `tf.contrib.distributions.DiscreteDistribution.variance(name='variance')` {#DiscreteDistribution.variance}
 
 Variance of the distribution.
@@ -596,21 +647,504 @@ Variance of the distribution.
 
 - - -
 
+### `class tf.contrib.distributions.Bernoulli` {#Bernoulli}
+
+Bernoulli distribution.
+
+The Bernoulli distribution is parameterized by p, the probability of a
+positive event.
+
+Note, the following methods of the base class aren't implemented:
+  * cdf
+  * log_cdf
+- - -
+
+#### `tf.contrib.distributions.Bernoulli.__init__(p, dtype=tf.int32, strict=True, name='Bernoulli')` {#Bernoulli.__init__}
+
+Construct Bernoulli distributions.
+
+##### Args:
+
+
+*  <b>`p`</b>: An N-D `Tensor` representing the probability of a positive
+      event. Each entry in the `Tensor` parameterizes an independent
+      Bernoulli distribution.
+*  <b>`dtype`</b>: dtype for samples. Note that other values will take the dtype of p.
+*  <b>`strict`</b>: Whether to assert that `0 <= p <= 1`. If not strict, `log_pmf` may
+    return nans.
+*  <b>`name`</b>: A name for this distribution.
+
+
+- - -
+
+#### `tf.contrib.distributions.Bernoulli.batch_shape(name='batch_shape')` {#Bernoulli.batch_shape}
+
+
+
+
+- - -
+
+#### `tf.contrib.distributions.Bernoulli.cdf(value, name='cdf')` {#Bernoulli.cdf}
+
+Cumulative distribution function.
+
+
+- - -
+
+#### `tf.contrib.distributions.Bernoulli.dtype` {#Bernoulli.dtype}
+
+
+
+
+- - -
+
+#### `tf.contrib.distributions.Bernoulli.entropy(name='entropy')` {#Bernoulli.entropy}
+
+Entropy of the distribution.
+
+##### Args:
+
+
+*  <b>`name`</b>: Name for the op.
+
+##### Returns:
+
+
+*  <b>`entropy`</b>: `Tensor` of the same type and shape as `p`.
+
+
+- - -
+
+#### `tf.contrib.distributions.Bernoulli.event_shape(name='event_shape')` {#Bernoulli.event_shape}
+
+
+
+
+- - -
+
+#### `tf.contrib.distributions.Bernoulli.get_batch_shape()` {#Bernoulli.get_batch_shape}
+
+
+
+
+- - -
+
+#### `tf.contrib.distributions.Bernoulli.get_event_shape()` {#Bernoulli.get_event_shape}
+
+
+
+
+- - -
+
+#### `tf.contrib.distributions.Bernoulli.is_reparameterized` {#Bernoulli.is_reparameterized}
+
+
+
+
+- - -
+
+#### `tf.contrib.distributions.Bernoulli.log_cdf(value, name='log_cdf')` {#Bernoulli.log_cdf}
+
+Log CDF.
+
+
+- - -
+
+#### `tf.contrib.distributions.Bernoulli.log_likelihood(value, name='log_likelihood')` {#Bernoulli.log_likelihood}
+
+Log likelihood of this distribution (same as log_pmf).
+
+
+- - -
+
+#### `tf.contrib.distributions.Bernoulli.log_pmf(event, name='log_pmf')` {#Bernoulli.log_pmf}
+
+Log of the probability mass function.
+
+##### Args:
+
+
+*  <b>`event`</b>: `int32` or `int64` binary Tensor.
+*  <b>`name`</b>: A name for this operation (optional).
+
+##### Returns:
+
+  The log-probabilities of the events.
+
+
+- - -
+
+#### `tf.contrib.distributions.Bernoulli.mean(name='mean')` {#Bernoulli.mean}
+
+Mean of the distribution.
+
+##### Args:
+
+
+*  <b>`name`</b>: Name for the op.
+
+##### Returns:
+
+
+*  <b>`mean`</b>: `Tensor` of the same type and shape as `p`.
+
+
+- - -
+
+#### `tf.contrib.distributions.Bernoulli.mode(name='mode')` {#Bernoulli.mode}
+
+Mode of the distribution.
+
+1 if p > 1-p. 0 otherwise.
+
+##### Args:
+
+
+*  <b>`name`</b>: Name for the op.
+
+##### Returns:
+
+
+*  <b>`mode`</b>: binary `Tensor` of type self.dtype.
+
+
+- - -
+
+#### `tf.contrib.distributions.Bernoulli.name` {#Bernoulli.name}
+
+
+
+
+- - -
+
+#### `tf.contrib.distributions.Bernoulli.p` {#Bernoulli.p}
+
+
+
+
+- - -
+
+#### `tf.contrib.distributions.Bernoulli.pmf(event, name='pmf')` {#Bernoulli.pmf}
+
+Probability mass function.
+
+##### Args:
+
+
+*  <b>`event`</b>: `int32` or `int64` binary Tensor; must be broadcastable with `p`.
+*  <b>`name`</b>: A name for this operation.
+
+##### Returns:
+
+  The probabilities of the events.
+
+
+- - -
+
+#### `tf.contrib.distributions.Bernoulli.q` {#Bernoulli.q}
+
+1-p.
+
+
+- - -
+
+#### `tf.contrib.distributions.Bernoulli.sample(n, seed=None, name='sample')` {#Bernoulli.sample}
+
+Generate `n` samples.
+
+##### Args:
+
+
+*  <b>`n`</b>: scalar.  Number of samples to draw from each distribution.
+*  <b>`seed`</b>: Python integer seed for RNG.
+*  <b>`name`</b>: name to give to the op.
+
+##### Returns:
+
+
+*  <b>`samples`</b>: a `Tensor` of shape `(n,) + self.batch_shape` with values of type
+      `self.dtype`.
+
+
+- - -
+
+#### `tf.contrib.distributions.Bernoulli.std(name='std')` {#Bernoulli.std}
+
+Standard deviation of the distribution.
+
+##### Args:
+
+
+*  <b>`name`</b>: Name for the op.
+
+##### Returns:
+
+
+*  <b>`std`</b>: `Tensor` of the same type and shape as `p`.
+
+
+- - -
+
+#### `tf.contrib.distributions.Bernoulli.strict` {#Bernoulli.strict}
+
+Boolean describing behavior on invalid input.
+
+
+- - -
+
+#### `tf.contrib.distributions.Bernoulli.variance(name='variance')` {#Bernoulli.variance}
+
+Variance of the distribution.
+
+##### Args:
+
+
+*  <b>`name`</b>: Name for the op.
+
+##### Returns:
+
+
+*  <b>`variance`</b>: `Tensor` of the same type and shape as `p`.
+
+
+
+- - -
+
+### `class tf.contrib.distributions.Categorical` {#Categorical}
+
+Categorical distribution.
+
+The categorical distribution is parameterized by the log-probabilities
+of a set of classes.
+
+Note, the following methods of the base class aren't implemented:
+  * mean
+  * cdf
+  * log_cdf
+- - -
+
+#### `tf.contrib.distributions.Categorical.__init__(logits, dtype=tf.int32, strict=True, name='Categorical')` {#Categorical.__init__}
+
+Initialize Categorical distributions using class log-probabilities.
+
+##### Args:
+
+
+*  <b>`logits`</b>: An N-D `Tensor`, `N >= 1`, representing the log probabilities
+      of a set of Categorical distributions. The first `N - 1` dimensions
+      index into a batch of independent distributions and the last dimension
+      indexes into the classes.
+*  <b>`dtype`</b>: The type of the event samples (default: int32).
+*  <b>`strict`</b>: Unused in this distribution.
+*  <b>`name`</b>: A name for this distribution (optional).
+
+
+- - -
+
+#### `tf.contrib.distributions.Categorical.batch_shape(name='batch_shape')` {#Categorical.batch_shape}
+
+
+
+
+- - -
+
+#### `tf.contrib.distributions.Categorical.cdf(value, name='cdf')` {#Categorical.cdf}
+
+Cumulative distribution function.
+
+
+- - -
+
+#### `tf.contrib.distributions.Categorical.dtype` {#Categorical.dtype}
+
+
+
+
+- - -
+
+#### `tf.contrib.distributions.Categorical.entropy(name='sample')` {#Categorical.entropy}
+
+
+
+
+- - -
+
+#### `tf.contrib.distributions.Categorical.event_shape(name='event_shape')` {#Categorical.event_shape}
+
+
+
+
+- - -
+
+#### `tf.contrib.distributions.Categorical.get_batch_shape()` {#Categorical.get_batch_shape}
+
+
+
+
+- - -
+
+#### `tf.contrib.distributions.Categorical.get_event_shape()` {#Categorical.get_event_shape}
+
+
+
+
+- - -
+
+#### `tf.contrib.distributions.Categorical.is_reparameterized` {#Categorical.is_reparameterized}
+
+
+
+
+- - -
+
+#### `tf.contrib.distributions.Categorical.log_cdf(value, name='log_cdf')` {#Categorical.log_cdf}
+
+Log CDF.
+
+
+- - -
+
+#### `tf.contrib.distributions.Categorical.log_likelihood(value, name='log_likelihood')` {#Categorical.log_likelihood}
+
+Log likelihood of this distribution (same as log_pmf).
+
+
+- - -
+
+#### `tf.contrib.distributions.Categorical.log_pmf(k, name='log_pmf')` {#Categorical.log_pmf}
+
+Log-probability of class `k`.
+
+##### Args:
+
+
+*  <b>`k`</b>: `int32` or `int64` Tensor with shape = `self.batch_shape()`.
+*  <b>`name`</b>: A name for this operation (optional).
+
+##### Returns:
+
+  The log-probabilities of the classes indexed by `k`
+
+
+- - -
+
+#### `tf.contrib.distributions.Categorical.logits` {#Categorical.logits}
+
+
+
+
+- - -
+
+#### `tf.contrib.distributions.Categorical.mean(name='mean')` {#Categorical.mean}
+
+Mean of the distribution.
+
+
+- - -
+
+#### `tf.contrib.distributions.Categorical.mode(name='mode')` {#Categorical.mode}
+
+
+
+
+- - -
+
+#### `tf.contrib.distributions.Categorical.name` {#Categorical.name}
+
+
+
+
+- - -
+
+#### `tf.contrib.distributions.Categorical.num_classes` {#Categorical.num_classes}
+
+
+
+
+- - -
+
+#### `tf.contrib.distributions.Categorical.pmf(k, name='pmf')` {#Categorical.pmf}
+
+Probability of class `k`.
+
+##### Args:
+
+
+*  <b>`k`</b>: `int32` or `int64` Tensor with shape = `self.batch_shape()`.
+*  <b>`name`</b>: A name for this operation (optional).
+
+##### Returns:
+
+  The probabilities of the classes indexed by `k`
+
+
+- - -
+
+#### `tf.contrib.distributions.Categorical.sample(n, seed=None, name='sample')` {#Categorical.sample}
+
+Sample `n` observations from the Categorical distribution.
+
+##### Args:
+
+
+*  <b>`n`</b>: 0-D.  Number of independent samples to draw for each distribution.
+*  <b>`seed`</b>: Random seed (optional).
+*  <b>`name`</b>: A name for this operation (optional).
+
+##### Returns:
+
+  An `int64` `Tensor` with shape `[n, batch_shape, event_shape]`
+
+
+- - -
+
+#### `tf.contrib.distributions.Categorical.std(name='std')` {#Categorical.std}
+
+Standard deviation of the distribution.
+
+
+- - -
+
+#### `tf.contrib.distributions.Categorical.strict` {#Categorical.strict}
+
+Boolean describing behavior on invalid input.
+
+
+- - -
+
+#### `tf.contrib.distributions.Categorical.variance(name='variance')` {#Categorical.variance}
+
+Variance of the distribution.
+
+
+
+- - -
+
 ### `class tf.contrib.distributions.Chi2` {#Chi2}
 
 The Chi2 distribution with degrees of freedom df.
 
 The PDF of this distribution is:
 
-```pdf(x) = (x^(df/2 - 1)e^(-x/2))/(2^(k/2)Gamma(k/2)), x > 0```
+```pdf(x) = (x^(df/2 - 1)e^(-x/2))/(2^(df/2)Gamma(df/2)), x > 0```
 
 Note that the Chi2 distribution is a special case of the Gamma distribution,
 with Chi2(df) = Gamma(df/2, 1/2).
 - - -
 
-#### `tf.contrib.distributions.Chi2.__init__(df, name='Chi2')` {#Chi2.__init__}
+#### `tf.contrib.distributions.Chi2.__init__(df, strict=True, name='Chi2')` {#Chi2.__init__}
+
+Construct Chi2 distributions with parameter `df`.
+
+##### Args:
 
 
+*  <b>`df`</b>: `float` or `double` tensor, the degrees of freedom of the
+    distribution(s).  `df` must contain only positive values.
+*  <b>`strict`</b>: Whether to assert that `df > 0`, and that `x > 0` in the
+    methods `pdf(x)` and `log_pdf(x)`. If `strict` is False
+    and the inputs are invalid, correct behavior is not guaranteed.
+*  <b>`name`</b>: The name to prepend to all ops created by this distribution.
 
 
 - - -
@@ -849,14 +1383,17 @@ Pdf of observations in `x` under these Gamma distribution(s).
 
 #### `tf.contrib.distributions.Chi2.sample(n, seed=None, name='sample')` {#Chi2.sample}
 
-Generate `n` samples.
+Draws `n` samples from the Gamma distribution(s).
+
+See the doc for tf.random_gamma for further detail.
 
 ##### Args:
 
 
-*  <b>`n`</b>: scalar. Number of samples to draw from each distribution.
-*  <b>`seed`</b>: Python integer seed for RNG
-*  <b>`name`</b>: name to give to the op.
+*  <b>`n`</b>: Python integer, the number of observations to sample from each
+    distribution.
+*  <b>`seed`</b>: Python integer, the random seed for this operation.
+*  <b>`name`</b>: Optional name for the operation.
 
 ##### Returns:
 
@@ -870,6 +1407,13 @@ Generate `n` samples.
 #### `tf.contrib.distributions.Chi2.std(name='std')` {#Chi2.std}
 
 Standard deviation of this distribution.
+
+
+- - -
+
+#### `tf.contrib.distributions.Chi2.strict` {#Chi2.strict}
+
+Boolean describing behavior on invalid input.
 
 
 - - -
@@ -894,9 +1438,19 @@ Note that the Exponential distribution is a special case of the Gamma
 distribution, with Exponential(lam) = Gamma(1, lam).
 - - -
 
-#### `tf.contrib.distributions.Exponential.__init__(lam, name='Exponential')` {#Exponential.__init__}
+#### `tf.contrib.distributions.Exponential.__init__(lam, strict=True, name='Exponential')` {#Exponential.__init__}
+
+Construct Exponential distribution with parameter `lam`.
+
+##### Args:
 
 
+*  <b>`lam`</b>: `float` or `double` tensor, the rate of the distribution(s).
+    `lam` must contain only positive values.
+*  <b>`strict`</b>: Whether to assert that `lam > 0`, and that `x > 0` in the
+    methods `pdf(x)` and `log_pdf(x)`.  If `strict` is False
+    and the inputs are invalid, correct behavior is not guaranteed.
+*  <b>`name`</b>: The name to prepend to all ops created by this distribution.
 
 
 - - -
@@ -1160,6 +1714,13 @@ Standard deviation of this distribution.
 
 - - -
 
+#### `tf.contrib.distributions.Exponential.strict` {#Exponential.strict}
+
+Boolean describing behavior on invalid input.
+
+
+- - -
+
 #### `tf.contrib.distributions.Exponential.variance(name='variance')` {#Exponential.variance}
 
 Variance of each batch member.
@@ -1192,7 +1753,7 @@ dist2 = Gamma(alpha=[3.0, 4.0], beta=[2.0, 3.0])
 ```
 - - -
 
-#### `tf.contrib.distributions.Gamma.__init__(alpha, beta, name='Gamma')` {#Gamma.__init__}
+#### `tf.contrib.distributions.Gamma.__init__(alpha, beta, strict=True, name='Gamma')` {#Gamma.__init__}
 
 Construct Gamma distributions with parameters `alpha` and `beta`.
 
@@ -1208,6 +1769,9 @@ broadcasting (e.g. `alpha + beta` is a valid operation).
 *  <b>`beta`</b>: `float` or `double` tensor, the inverse scale params of the
     distribution(s).
     beta must contain only positive values.
+*  <b>`strict`</b>: Whether to assert that `a > 0, b > 0`, and that `x > 0` in the
+    methods `pdf(x)` and `log_pdf(x)`.  If `strict` is False
+    and the inputs are invalid, correct behavior is not guaranteed.
 *  <b>`name`</b>: The name to prepend to all ops created by this distribution.
 
 ##### Raises:
@@ -1445,14 +2009,17 @@ Pdf of observations in `x` under these Gamma distribution(s).
 
 #### `tf.contrib.distributions.Gamma.sample(n, seed=None, name='sample')` {#Gamma.sample}
 
-Generate `n` samples.
+Draws `n` samples from the Gamma distribution(s).
+
+See the doc for tf.random_gamma for further detail.
 
 ##### Args:
 
 
-*  <b>`n`</b>: scalar. Number of samples to draw from each distribution.
-*  <b>`seed`</b>: Python integer seed for RNG
-*  <b>`name`</b>: name to give to the op.
+*  <b>`n`</b>: Python integer, the number of observations to sample from each
+    distribution.
+*  <b>`seed`</b>: Python integer, the random seed for this operation.
+*  <b>`name`</b>: Optional name for the operation.
 
 ##### Returns:
 
@@ -1466,6 +2033,13 @@ Generate `n` samples.
 #### `tf.contrib.distributions.Gamma.std(name='std')` {#Gamma.std}
 
 Standard deviation of this distribution.
+
+
+- - -
+
+#### `tf.contrib.distributions.Gamma.strict` {#Gamma.strict}
+
+Boolean describing behavior on invalid input.
 
 
 - - -
@@ -1524,7 +2098,7 @@ dist.pdf(3.0)
 ```
 - - -
 
-#### `tf.contrib.distributions.Normal.__init__(mu, sigma, name='Normal')` {#Normal.__init__}
+#### `tf.contrib.distributions.Normal.__init__(mu, sigma, strict=True, name='Normal')` {#Normal.__init__}
 
 Construct Normal distributions with mean and stddev `mu` and `sigma`.
 
@@ -1537,6 +2111,8 @@ broadcasting (e.g. `mu + sigma` is a valid operation).
 *  <b>`mu`</b>: `float` or `double` tensor, the means of the distribution(s).
 *  <b>`sigma`</b>: `float` or `double` tensor, the stddevs of the distribution(s).
     sigma must contain only positive values.
+*  <b>`strict`</b>: Whether to assert that `sigma > 0`. If `strict` is False,
+    correct output is not guaranteed when input is invalid.
 *  <b>`name`</b>: The name to give Ops created by the initializer.
 
 ##### Raises:
@@ -1780,6 +2356,13 @@ Standard deviation of this distribution.
 
 - - -
 
+#### `tf.contrib.distributions.Normal.strict` {#Normal.strict}
+
+Boolean describing behavior on invalid input.
+
+
+- - -
+
 #### `tf.contrib.distributions.Normal.variance(name='variance')` {#Normal.variance}
 
 Variance of this distribution.
@@ -1837,7 +2420,7 @@ dist.pdf(3.0)
 ```
 - - -
 
-#### `tf.contrib.distributions.StudentT.__init__(df, mu, sigma, name='StudentT')` {#StudentT.__init__}
+#### `tf.contrib.distributions.StudentT.__init__(df, mu, sigma, strict=True, name='StudentT')` {#StudentT.__init__}
 
 Construct Student's t distributions.
 
@@ -1855,6 +2438,8 @@ broadcasting (e.g. `df + mu + sigma` is a valid operation).
 *  <b>`sigma`</b>: `float` or `double` tensor, the scaling factor for the
     distribution(s). `sigma` must contain only positive values.
     Note that `sigma` is not the standard deviation of this distribution.
+*  <b>`strict`</b>: Whether to assert that `df > 0, sigma > 0`. If `strict` is False
+    and inputs are invalid, correct behavior is not guaranteed.
 *  <b>`name`</b>: The name to give Ops created by the initializer.
 
 ##### Raises:
@@ -2051,6 +2636,13 @@ Scaling factors of these Student's t distribution(s).
 
 - - -
 
+#### `tf.contrib.distributions.StudentT.strict` {#StudentT.strict}
+
+Boolean describing behavior on invalid input.
+
+
+- - -
+
 #### `tf.contrib.distributions.StudentT.variance(name='variance')` {#StudentT.variance}
 
 
@@ -2066,7 +2658,7 @@ Uniform distribution with `a` and `b` parameters.
 The PDF of this distribution is constant between [`a`, `b`], and 0 elsewhere.
 - - -
 
-#### `tf.contrib.distributions.Uniform.__init__(a=0.0, b=1.0, name='Uniform')` {#Uniform.__init__}
+#### `tf.contrib.distributions.Uniform.__init__(a=0.0, b=1.0, strict=True, name='Uniform')` {#Uniform.__init__}
 
 Construct Uniform distributions with `a` and `b`.
 
@@ -2096,12 +2688,14 @@ u1 = Uniform(3.0, [5.0, 6.0, 7.0])  # 3 distributions
 
 *  <b>`a`</b>: `float` or `double` tensor, the minimum endpoint.
 *  <b>`b`</b>: `float` or `double` tensor, the maximum endpoint. Must be > `a`.
+*  <b>`strict`</b>: Whether to assert that `a > b`. If `strict` is False and inputs
+    are invalid, correct behavior is not guaranteed.
 *  <b>`name`</b>: The name to prefix Ops created by this distribution class.
 
 ##### Raises:
 
 
-*  <b>`InvalidArgumentError`</b>: if `a >= b`.
+*  <b>`InvalidArgumentError`</b>: if `a >= b` and `strict=True`.
 
 
 - - -
@@ -2289,6 +2883,13 @@ Sample `n` observations from the Uniform Distributions.
 #### `tf.contrib.distributions.Uniform.std(name='std')` {#Uniform.std}
 
 
+
+
+- - -
+
+#### `tf.contrib.distributions.Uniform.strict` {#Uniform.strict}
+
+Boolean describing behavior on invalid input.
 
 
 - - -
@@ -2598,7 +3199,7 @@ dist.pmf(counts)  # Shape [2]
 ```
 - - -
 
-#### `tf.contrib.distributions.DirichletMultinomial.__init__(n, alpha, name='DirichletMultinomial', allow_arbitrary_counts=False)` {#DirichletMultinomial.__init__}
+#### `tf.contrib.distributions.DirichletMultinomial.__init__(n, alpha, allow_arbitrary_counts=False, strict=True, name='DirichletMultinomial')` {#DirichletMultinomial.__init__}
 
 Initialize a batch of DirichletMultinomial distributions.
 
@@ -2612,11 +3213,12 @@ Initialize a batch of DirichletMultinomial distributions.
 *  <b>`alpha`</b>: Positive `float` or `double` tensor with shape broadcastable to
     `[N1,..., Nm, k]` `m >= 0`.  Defines this as a batch of `N1 x ... x Nm`
      different `k` class Dirichlet multinomial distributions.
-*  <b>`name`</b>: The name to prefix Ops created by this distribution class.
 *  <b>`allow_arbitrary_counts`</b>: Boolean. This represents whether the pmf/cdf
     allows for the `counts` tensor to be non-integral values.
     The pmf/cdf are functions that can be evaluated at non-integral values,
     but are only a distribution over non-negative integers.
+*  <b>`strict`</b>: Not used (yet).
+*  <b>`name`</b>: The name to prefix Ops created by this distribution class.
 
 
 *  <b>`Examples`</b>: 
@@ -2847,6 +3449,13 @@ Standard deviation of the distribution.
 
 - - -
 
+#### `tf.contrib.distributions.DirichletMultinomial.strict` {#DirichletMultinomial.strict}
+
+Boolean describing behavior on invalid input.
+
+
+- - -
+
 #### `tf.contrib.distributions.DirichletMultinomial.variance(name='variance')` {#DirichletMultinomial.variance}
 
 Variance of the distribution.
@@ -2968,5 +3577,67 @@ will broadcast in the case of multidimensional sets of parameters.
 
 *  <b>`TypeError`</b>: if dtype of `s` does not match `dtype`, or `prior` is not a
     Normal object.
+
+
+
+## Kullback Leibler Divergence
+
+- - -
+
+### `tf.contrib.distributions.kl(dist_a, dist_b, allow_nan=False, name=None)` {#kl}
+
+Get the KL-divergence KL(dist_a || dist_b).
+
+##### Args:
+
+
+*  <b>`dist_a`</b>: instance of distributions.BaseDistribution.
+*  <b>`dist_b`</b>: instance of distributions.BaseDistribution.
+*  <b>`allow_nan`</b>: If False (default), a runtime error is raised
+    if the KL returns NaN values for any batch entry of the given
+    distributions.  If True, the KL may return a NaN for the given entry.
+*  <b>`name`</b>: (optional) Name scope to use for created operations.
+
+##### Returns:
+
+  A Tensor with the batchwise KL-divergence between dist_a and dist_b.
+
+##### Raises:
+
+
+*  <b>`TypeError`</b>: If dist_a or dist_b is not an instance of BaseDistribution.
+*  <b>`NotImplementedError`</b>: If no KL method is defined for distribution types
+    of dist_a and dist_b.
+
+
+- - -
+
+### `class tf.contrib.distributions.RegisterKL` {#RegisterKL}
+
+Decorator to register a KL divergence implementation function.
+
+Usage:
+
+@distributions.RegisterKL(distributions.Normal, distributions.Normal)
+def _kl_normal_mvn(norm_a, norm_b):
+  # Return KL(norm_a || norm_b)
+- - -
+
+#### `tf.contrib.distributions.RegisterKL.__init__(dist_cls_a, dist_cls_b)` {#RegisterKL.__init__}
+
+Initialize the KL registrar.
+
+##### Args:
+
+
+*  <b>`dist_cls_a`</b>: the class of the first argument of the KL divergence.
+*  <b>`dist_cls_b`</b>: the class of the second argument of the KL divergence.
+
+##### Raises:
+
+
+*  <b>`TypeError`</b>: if dist_cls_a or dist_cls_b are not subclasses of
+    BaseDistribution.
+
 
 

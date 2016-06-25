@@ -24,12 +24,12 @@ import numpy as np
 
 from tensorflow.contrib.distributions.python.ops import distribution  # pylint: disable=line-too-long
 from tensorflow.contrib.framework.python.framework import tensor_util as contrib_tensor_util  # pylint: disable=line-too-long
+from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import ops
 from tensorflow.python.framework import tensor_shape
 from tensorflow.python.framework import tensor_util
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import check_ops
-from tensorflow.python.ops import constant_op
 from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import random_ops
 from tensorflow.python.ops import special_math_ops
@@ -83,7 +83,7 @@ class StudentT(distribution.ContinuousDistribution):
   ```
   """
 
-  def __init__(self, df, mu, sigma, name="StudentT"):
+  def __init__(self, df, mu, sigma, strict=True, name="StudentT"):
     """Construct Student's t distributions.
 
     The distributions have degree of freedom `df`, mean `mu`, and scale `sigma`.
@@ -98,15 +98,19 @@ class StudentT(distribution.ContinuousDistribution):
       sigma: `float` or `double` tensor, the scaling factor for the
         distribution(s). `sigma` must contain only positive values.
         Note that `sigma` is not the standard deviation of this distribution.
+      strict: Whether to assert that `df > 0, sigma > 0`. If `strict` is False
+        and inputs are invalid, correct behavior is not guaranteed.
       name: The name to give Ops created by the initializer.
 
     Raises:
       TypeError: if mu and sigma are different dtypes.
     """
     super(StudentT, self).__init__()
+    self._strict = strict
     with ops.op_scope([df, mu, sigma], name) as scope:
-      with ops.control_dependencies([check_ops.assert_positive(df),
-                                     check_ops.assert_positive(sigma)]):
+      with ops.control_dependencies(
+          [check_ops.assert_positive(df), check_ops.assert_positive(sigma)]
+          if strict else []):
         self._df = ops.convert_to_tensor(df, name="df")
         self._mu = ops.convert_to_tensor(mu, name="mu")
         self._sigma = ops.convert_to_tensor(sigma, name="sigma")
@@ -115,6 +119,11 @@ class StudentT(distribution.ContinuousDistribution):
       self._name = scope
       self._get_batch_shape = self._ones().get_shape()
       self._get_event_shape = tensor_shape.TensorShape([])
+
+  @property
+  def strict(self):
+    """Boolean describing behavior on invalid input."""
+    return self._strict
 
   @property
   def name(self):

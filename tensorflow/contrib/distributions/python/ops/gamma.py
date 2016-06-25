@@ -22,14 +22,15 @@ import numpy as np
 
 from tensorflow.contrib.distributions.python.ops import distribution  # pylint: disable=line-too-long
 from tensorflow.contrib.framework.python.framework import tensor_util as contrib_tensor_util  # pylint: disable=line-too-long
+from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import ops
 from tensorflow.python.framework import tensor_shape
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import check_ops
-from tensorflow.python.ops import constant_op
 from tensorflow.python.ops import control_flow_ops
 from tensorflow.python.ops import math_ops
+from tensorflow.python.ops import random_ops
 
 
 class Gamma(distribution.ContinuousDistribution):
@@ -56,7 +57,7 @@ class Gamma(distribution.ContinuousDistribution):
 
   """
 
-  def __init__(self, alpha, beta, name="Gamma"):
+  def __init__(self, alpha, beta, strict=True, name="Gamma"):
     """Construct Gamma distributions with parameters `alpha` and `beta`.
 
     The parameters `alpha` and `beta` must be shaped in a way that supports
@@ -69,14 +70,20 @@ class Gamma(distribution.ContinuousDistribution):
       beta: `float` or `double` tensor, the inverse scale params of the
         distribution(s).
         beta must contain only positive values.
+      strict: Whether to assert that `a > 0, b > 0`, and that `x > 0` in the
+        methods `pdf(x)` and `log_pdf(x)`.  If `strict` is False
+        and the inputs are invalid, correct behavior is not guaranteed.
       name: The name to prepend to all ops created by this distribution.
 
     Raises:
       TypeError: if `alpha` and `beta` are different dtypes.
     """
-    with ops.op_scope([alpha, beta], name):
-      with ops.control_dependencies([
-          check_ops.assert_positive(alpha), check_ops.assert_positive(beta)]):
+    self._strict = strict
+    with ops.op_scope([alpha, beta], name) as scope:
+      self._name = scope
+      with ops.control_dependencies(
+          [check_ops.assert_positive(alpha), check_ops.assert_positive(beta)]
+          if strict else []):
         alpha = array_ops.identity(alpha, name="alpha")
         beta = array_ops.identity(beta, name="beta")
 
@@ -88,7 +95,11 @@ class Gamma(distribution.ContinuousDistribution):
 
     self._alpha = alpha
     self._beta = beta
-    self._name = name
+
+  @property
+  def strict(self):
+    """Boolean describing behavior on invalid input."""
+    return self._strict
 
   @property
   def name(self):
@@ -207,7 +218,8 @@ class Gamma(distribution.ContinuousDistribution):
         beta = self._beta
         x = ops.convert_to_tensor(x)
         x = control_flow_ops.with_dependencies(
-            [check_ops.assert_positive(x)], x)
+            [check_ops.assert_positive(x)] if self.strict else [],
+            x)
         contrib_tensor_util.assert_same_float_dtype(tensors=[x,],
                                                     dtype=self.dtype)
 
@@ -245,7 +257,8 @@ class Gamma(distribution.ContinuousDistribution):
       with ops.op_scope([self._alpha, self._beta, x], name):
         x = ops.convert_to_tensor(x)
         x = control_flow_ops.with_dependencies(
-            [check_ops.assert_positive(x)], x)
+            [check_ops.assert_positive(x)] if self.strict else [],
+            x)
         contrib_tensor_util.assert_same_float_dtype(tensors=[x,],
                                                     dtype=self.dtype)
         # Note that igamma returns the regularized incomplete gamma function,
@@ -290,6 +303,29 @@ class Gamma(distribution.ContinuousDistribution):
         beta = self._beta
         return (alpha - math_ops.log(beta) + math_ops.lgamma(alpha) +
                 (1 - alpha) * math_ops.digamma(alpha))
+
+  def sample(self, n, seed=None, name="sample"):
+    """Draws `n` samples from the Gamma distribution(s).
+
+    See the doc for tf.random_gamma for further detail.
+
+    Args:
+      n: Python integer, the number of observations to sample from each
+        distribution.
+      seed: Python integer, the random seed for this operation.
+      name: Optional name for the operation.
+
+    Returns:
+      samples: a `Tensor` of shape `(n,) + self.batch_shape + self.event_shape`
+          with values of type `self.dtype`.
+    """
+    with ops.op_scope([n, self.alpha, self._beta], self.name):
+      return random_ops.random_gamma([n],
+                                     self.alpha,
+                                     beta=self._beta,
+                                     dtype=self.dtype,
+                                     seed=seed,
+                                     name=name)
 
   @property
   def is_reparameterized(self):

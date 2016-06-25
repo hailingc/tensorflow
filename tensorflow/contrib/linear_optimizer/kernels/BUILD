@@ -21,8 +21,8 @@ cc_library(
         "squared-loss.h",
     ],
     deps = [
-        "@protobuf//:protobuf",
         "//tensorflow/core:framework_headers_lib",
+        "@protobuf//:protobuf",
     ],
 )
 
@@ -43,9 +43,10 @@ cc_library(
     srcs = ["resources.cc"],
     hdrs = ["resources.h"],
     deps = [
-        "@protobuf//:protobuf",
         "//tensorflow/core:framework_headers_lib",
         "//third_party/eigen3",
+        "@farmhash_archive//:farmhash",
+        "@protobuf//:protobuf",
     ],
 )
 
@@ -66,12 +67,12 @@ cc_library(
     name = "sdca_ops",
     srcs = ["sdca_ops.cc"],
     deps = [
-        "@protobuf//:protobuf",
         ":loss_updaters",
         ":resources",
         "//tensorflow/core:framework_headers_lib",
         "//tensorflow/core/kernels:bounds_check_lib",
         "//third_party/eigen3",
+        "@protobuf//:protobuf",
     ],
     alwayslink = 1,
 )
