@@ -27,9 +27,17 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd ${SCRIPT_DIR}/../../../
 
+
 # Remove any old files first.
 make -f tensorflow/contrib/makefile/Makefile clean
 rm -rf tensorflow/contrib/makefile/downloads
+
+# Setting a deployment target is required for building with bitcode,
+# otherwise linking will fail with:
+#
+#    ld: -bind_at_load and -bitcode_bundle (Xcode setting ENABLE_BITCODE=YES) cannot be used together
+#
+export MACOSX_DEPLOYMENT_TARGET="10.10"
 
 # Pull down the required versions of the frameworks we need.
 tensorflow/contrib/makefile/download_dependencies.sh
@@ -38,7 +46,8 @@ tensorflow/contrib/makefile/download_dependencies.sh
 tensorflow/contrib/makefile/compile_ios_protobuf.sh
 
 # Build the iOS TensorFlow libraries.
-tensorflow/contrib/makefile/compile_ios_tensorflow.sh
+tensorflow/contrib/makefile/compile_ios_tensorflow.sh "-O3"
 
 # Creates a static universal library in 
 # tensorflow/contrib/makefile/gen/lib/libtensorflow-core.a
+

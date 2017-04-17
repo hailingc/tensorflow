@@ -42,6 +42,10 @@ static inline void ParseAndCheckBoxSizes(OpKernelContext* context,
                                          const Tensor& boxes,
                                          const Tensor& box_ind,
                                          int* num_boxes) {
+  if (boxes.NumElements() == 0 && box_ind.NumElements() == 0) {
+    *num_boxes = 0;
+    return;
+  }
   // The shape of 'boxes' is [num_boxes, 4].
   OP_REQUIRES(context, boxes.dims() == 2,
               errors::InvalidArgument("boxes must be 2-D",
@@ -132,9 +136,13 @@ class CropAndResizeOp : public OpKernel {
 
     CheckValidBoxInd<Device>(context, box_ind_data, batch);
 
-    functor::CropAndResize<Device, T>()(context->eigen_device<Device>(),
-                                        image_data, boxes_data, box_ind_data,
-                                        extrapolation_value_, crops_data);
+    bool status = functor::CropAndResize<Device, T>()(
+        context->eigen_device<Device>(), image_data, boxes_data, box_ind_data,
+        extrapolation_value_, crops_data);
+    if (!status) {
+      context->SetStatus(
+          errors::Internal("Failed launch CropAndResizeKernel."));
+    }
   }
 
  private:
@@ -145,11 +153,12 @@ class CropAndResizeOp : public OpKernel {
 namespace functor {
 template <typename T>
 struct CropAndResize<CPUDevice, T> {
-  void operator()(const CPUDevice& d, typename TTypes<T, 4>::ConstTensor image,
+  bool operator()(const CPUDevice& d, typename TTypes<T, 4>::ConstTensor image,
                   typename TTypes<float, 2>::ConstTensor boxes,
                   typename TTypes<int32, 1>::ConstTensor box_ind,
                   float extrapolation_value,
                   typename TTypes<float, 4>::Tensor crops) {
+    const int batch = image.dimension(0);
     const int image_height = image.dimension(1);
     const int image_width = image.dimension(2);
 
@@ -163,7 +172,11 @@ struct CropAndResize<CPUDevice, T> {
       const float x1 = boxes(b, 1);
       const float y2 = boxes(b, 2);
       const float x2 = boxes(b, 3);
+
       const int32 b_in = box_ind(b);
+      if (b_in < 0 || b_in >= batch) {
+        continue;
+      }
 
       const float height_scale =
           (crop_height > 1) ? (y2 - y1) * (image_height - 1) / (crop_height - 1)
@@ -203,12 +216,14 @@ struct CropAndResize<CPUDevice, T> {
           const float x_lerp = in_x - left_x_index;
 
           for (int d = 0; d < depth; ++d) {
-            const float top_left(image(b_in, top_y_index, left_x_index, d));
-            const float top_right(image(b_in, top_y_index, right_x_index, d));
-            const float bottom_left(
-                image(b_in, bottom_y_index, left_x_index, d));
-            const float bottom_right(
-                image(b_in, bottom_y_index, right_x_index, d));
+            const float top_left(
+                static_cast<float>(image(b_in, top_y_index, left_x_index, d)));
+            const float top_right(
+                static_cast<float>(image(b_in, top_y_index, right_x_index, d)));
+            const float bottom_left(static_cast<float>(
+                image(b_in, bottom_y_index, left_x_index, d)));
+            const float bottom_right(static_cast<float>(
+                image(b_in, bottom_y_index, right_x_index, d)));
             const float top = top_left + (top_right - top_left) * x_lerp;
             const float bottom =
                 bottom_left + (bottom_right - bottom_left) * x_lerp;
@@ -217,6 +232,7 @@ struct CropAndResize<CPUDevice, T> {
         }
       }
     }
+    return true;
   }
 };
 }  // namespace functor
@@ -235,6 +251,7 @@ class CropAndResizeGradImageOp : public OpKernel {
   void Compute(OpKernelContext* context) override {
     // The shape of 'grads' is [num_boxes, crop_height, crop_width, depth].
     const Tensor& grads = context->input(0);
+
     OP_REQUIRES(context, grads.dims() == 4,
                 errors::InvalidArgument("grads image must be 4-D",
                                         grads.shape().DebugString()));
@@ -294,9 +311,13 @@ class CropAndResizeGradImageOp : public OpKernel {
 
     CheckValidBoxInd<Device>(context, box_ind_data, batch);
 
-    functor::CropAndResizeBackpropImage<Device, T>()(
+    bool status = functor::CropAndResizeBackpropImage<Device, T>()(
         context->eigen_device<Device>(), grads_data, boxes_data, box_ind_data,
         output_data);
+    if (!status) {
+      context->SetStatus(
+          errors::Internal("Failed launch CropAndResizeBackpropImageKernel."));
+    }
   }
 };
 
@@ -304,11 +325,12 @@ class CropAndResizeGradImageOp : public OpKernel {
 namespace functor {
 template <typename T>
 struct CropAndResizeBackpropImage<CPUDevice, T> {
-  void operator()(const CPUDevice& d,
+  bool operator()(const CPUDevice& d,
                   typename TTypes<float, 4>::ConstTensor grads,
                   typename TTypes<float, 2>::ConstTensor boxes,
                   typename TTypes<int32, 1>::ConstTensor box_ind,
                   typename TTypes<T, 4>::Tensor grads_image) {
+    const int batch = grads_image.dimension(0);
     const int image_height = grads_image.dimension(1);
     const int image_width = grads_image.dimension(2);
 
@@ -324,7 +346,11 @@ struct CropAndResizeBackpropImage<CPUDevice, T> {
       const float x1 = boxes(b, 1);
       const float y2 = boxes(b, 2);
       const float x2 = boxes(b, 3);
+
       const int32 b_in = box_ind(b);
+      if (b_in < 0 || b_in >= batch) {
+        continue;
+      }
 
       const float height_scale =
           (crop_height > 1) ? (y2 - y1) * (image_height - 1) / (crop_height - 1)
@@ -370,6 +396,7 @@ struct CropAndResizeBackpropImage<CPUDevice, T> {
         }
       }
     }
+    return true;
   }
 };
 }  // namespace functor
@@ -388,6 +415,7 @@ class CropAndResizeGradBoxesOp : public OpKernel {
   void Compute(OpKernelContext* context) override {
     // The shape of 'grads' is [num_boxes, crop_height, crop_width, depth].
     const Tensor& grads = context->input(0);
+
     OP_REQUIRES(context, grads.dims() == 4,
                 errors::InvalidArgument("grads image must be 4-D",
                                         grads.shape().DebugString()));
@@ -441,9 +469,13 @@ class CropAndResizeGradBoxesOp : public OpKernel {
 
     CheckValidBoxInd<Device>(context, box_ind_data, batch);
 
-    functor::CropAndResizeBackpropBoxes<Device, T>()(
+    bool status = functor::CropAndResizeBackpropBoxes<Device, T>()(
         context->eigen_device<Device>(), grads_data, image_data, boxes_data,
         box_ind_data, output_data);
+    if (!status) {
+      context->SetStatus(
+          errors::Internal("Failed launch CropAndResizeBackpropBoxesKernel."));
+    }
   }
 };
 
@@ -451,12 +483,13 @@ class CropAndResizeGradBoxesOp : public OpKernel {
 namespace functor {
 template <typename T>
 struct CropAndResizeBackpropBoxes<CPUDevice, T> {
-  void operator()(const CPUDevice& d,
+  bool operator()(const CPUDevice& d,
                   typename TTypes<float, 4>::ConstTensor grads,
                   typename TTypes<T, 4>::ConstTensor image,
                   typename TTypes<float, 2>::ConstTensor boxes,
                   typename TTypes<int32, 1>::ConstTensor box_ind,
                   typename TTypes<float, 2>::Tensor grads_boxes) {
+    const int batch = image.dimension(0);
     const int image_height = image.dimension(1);
     const int image_width = image.dimension(2);
 
@@ -472,7 +505,11 @@ struct CropAndResizeBackpropBoxes<CPUDevice, T> {
       const float x1 = boxes(b, 1);
       const float y2 = boxes(b, 2);
       const float x2 = boxes(b, 3);
+
       const int32 b_in = box_ind(b);
+      if (b_in < 0 || b_in >= batch) {
+        continue;
+      }
 
       const float height_ratio =
           (crop_height > 1)
@@ -510,12 +547,14 @@ struct CropAndResizeBackpropBoxes<CPUDevice, T> {
           const float x_lerp = in_x - left_x_index;
 
           for (int d = 0; d < depth; ++d) {
-            const float top_left(image(b_in, top_y_index, left_x_index, d));
-            const float top_right(image(b_in, top_y_index, right_x_index, d));
-            const float bottom_left(
-                image(b_in, bottom_y_index, left_x_index, d));
-            const float bottom_right(
-                image(b_in, bottom_y_index, right_x_index, d));
+            const float top_left(
+                static_cast<float>(image(b_in, top_y_index, left_x_index, d)));
+            const float top_right(
+                static_cast<float>(image(b_in, top_y_index, right_x_index, d)));
+            const float bottom_left(static_cast<float>(
+                image(b_in, bottom_y_index, left_x_index, d)));
+            const float bottom_right(static_cast<float>(
+                image(b_in, bottom_y_index, right_x_index, d)));
             // Compute the image gradient.
             float image_grad_y = (1 - x_lerp) * (bottom_left - top_left) +
                                  x_lerp * (bottom_right - top_right);
@@ -547,6 +586,7 @@ struct CropAndResizeBackpropBoxes<CPUDevice, T> {
         }
       }
     }
+    return true;
   }
 };
 }  // namespace functor
@@ -563,12 +603,17 @@ inline void CheckValidBoxInd<CPUDevice>(
   }
 }
 
-#define REGISTER_KERNEL(T)                              \
-  REGISTER_KERNEL_BUILDER(Name("CropAndResize")         \
-                              .Device(DEVICE_CPU)       \
-                              .TypeConstraint<T>("T")   \
-                              .HostMemory("crop_size"), \
-                          CropAndResizeOp<CPUDevice, T>);
+#define REGISTER_KERNEL(T)                                         \
+  REGISTER_KERNEL_BUILDER(Name("CropAndResize")                    \
+                              .Device(DEVICE_CPU)                  \
+                              .TypeConstraint<T>("T")              \
+                              .HostMemory("crop_size"),            \
+                          CropAndResizeOp<CPUDevice, T>);          \
+                                                                   \
+  REGISTER_KERNEL_BUILDER(Name("CropAndResizeGradBoxes")           \
+                              .Device(DEVICE_CPU)                  \
+                              .TypeConstraint<T>("T"),             \
+                          CropAndResizeGradBoxesOp<CPUDevice, T>);
 
 TF_CALL_REAL_NUMBER_TYPES(REGISTER_KERNEL);
 
@@ -584,16 +629,6 @@ TF_CALL_REAL_NUMBER_TYPES(REGISTER_KERNEL);
 TF_CALL_half(REGISTER_KERNEL);
 TF_CALL_float(REGISTER_KERNEL);
 TF_CALL_double(REGISTER_KERNEL);
-
-#undef REGISTER_KERNEL
-
-#define REGISTER_KERNEL(T)                               \
-  REGISTER_KERNEL_BUILDER(Name("CropAndResizeGradBoxes") \
-                              .Device(DEVICE_CPU)        \
-                              .TypeConstraint<T>("T"),   \
-                          CropAndResizeGradBoxesOp<CPUDevice, T>);
-
-TF_CALL_REAL_NUMBER_TYPES(REGISTER_KERNEL);
 
 #undef REGISTER_KERNEL
 
@@ -613,6 +648,10 @@ template <>
 inline void CheckValidBoxInd<GPUDevice>(
     OpKernelContext* context, typename TTypes<int32, 1>::ConstTensor box_ind,
     int batch) {
+  const int num_boxes = box_ind.dimension(0);
+  if (num_boxes == 0) {
+    return;
+  }
   Tensor isvalid_tensor;
   OP_REQUIRES_OK(context,
                  context->allocate_temp(DataTypeToEnum<bool>::value,
@@ -657,7 +696,7 @@ inline void CheckValidBoxInd<GPUDevice>(
                               .TypeConstraint<T>("T"),             \
                           CropAndResizeGradBoxesOp<GPUDevice, T>);
 
-TF_CALL_GPU_NUMBER_TYPES_NO_HALF(REGISTER_KERNEL);
+TF_CALL_GPU_NUMBER_TYPES(REGISTER_KERNEL);
 
 #undef REGISTER_KERNEL
 
